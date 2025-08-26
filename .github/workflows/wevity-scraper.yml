@@ -1,4 +1,4 @@
-name: wevity-scraper
+name: 공모전 알림 (5분 반복)
 
 on:
   schedule:
