@@ -2,11 +2,15 @@ name: 공모전 알림 (5분 반복)
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: "*/5 * * * *"      # 5분마다 (UTC)
   workflow_dispatch:
+  push:                         # ← 이 파일 바뀔 때 한 번 실행되게
+    paths:
+      - ".github/workflows/wevity-scraper.yml"
 
 permissions:
   contents: write
+  actions: write                # ← 나중에 dispatch 등 쓸 때 유용
 
 jobs:
   run:
