@@ -17,6 +17,7 @@ from urllib3.util import Retry
 import cloudscraper
 from bs4 import BeautifulSoup
 
+
 # ─────────────────────────────────────────────────────────────────────
 # 설정: 새 계정/레포로 바꿔 넣기
 # ─────────────────────────────────────────────────────────────────────
@@ -33,6 +34,8 @@ TG = {
     "BOT_TOKEN": os.getenv("TG_BOT_TOKEN", "").strip(),
     "CHAT_IDS": [c.strip() for c in os.getenv("TG_CHAT_IDS", "").split(",") if c.strip()],
 }
+
+TG_PER_CHAT_INTERVAL_SEC = float(os.getenv("TG_PER_CHAT_INTERVAL_SEC", "3.2"))
 
 # 범위/대기(차단 회피용)
 SCRAPE_PAGE_FROM = 1
@@ -242,17 +245,31 @@ def tg_send_message(token: str, chat_id: str, text: str, *, parse_mode="HTML", d
         "parse_mode": parse_mode,
         "disable_web_page_preview": disable_preview,  # False면 미리보기 ON
     }
-    r = requests.post(url, json=payload, timeout=15)
-    if r.status_code == 429:
-        time.sleep(1.2); r = requests.post(url, json=payload, timeout=15)
-    r.raise_for_status()
-    return r.json()
+
+    # 안티-플러드 대응: retry_after 존중 + 소규모 재시도
+    for attempt in range(6):
+        r = requests.post(url, json=payload, timeout=20)
+        if r.status_code == 429:
+            try:
+                j = r.json()
+                wait = j.get("parameters", {}).get("retry_after", 3)
+            except Exception:
+                wait = 3
+            # 로그 남기면 디버깅에 좋아요
+            print(f"[TG] 429 Too Many Requests → {wait}s 대기 (attempt={attempt+1})")
+            time.sleep(wait + 0.5)
+            continue
+        r.raise_for_status()
+        return r.json()
+
+    raise RuntimeError("Telegram: 반복된 429로 전송 실패")
+
 
 def notify_telegram(new_items: List[Dict]):
     if not TG["BOT_TOKEN"] or not TG["CHAT_IDS"]:
         print("[알림] TG 설정 비어 있음 → 텔레그램 전송 생략"); return
 
-    # 오래된 것 → 최신 순으로 발송
+    # 오래된 것 → 최신 순으로 발송(기존 로직 유지)
     def ix_as_int(x):
         s = str(x.get("ix",""))
         return int(s) if s.isdigit() else 10**12
@@ -277,9 +294,10 @@ def notify_telegram(new_items: List[Dict]):
             f"상태: {dtext} • {status} • 조회 {views_txt}\n\n"
             f"🔗 <a href=\"{safe_url}\">공고 바로가기</a>"
         )
+
         for cid in TG["CHAT_IDS"]:
             tg_send_message(TG["BOT_TOKEN"], cid, text, disable_preview=False)
-            time.sleep(1.05)
+            time.sleep(TG_PER_CHAT_INTERVAL_SEC)  # ← 3.2초 기본
 
 def notify_print(new_items: List[Dict]):
     # 오래된 것 → 최신 순으로 출력
