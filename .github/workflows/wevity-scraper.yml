@@ -28,7 +28,6 @@ jobs:
         id: started
         run: |
           echo "ts=$(date +%s)" >> $GITHUB_OUTPUT
-          echo "utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
           echo "kst=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_OUTPUT
           echo "▶ Started at (KST): $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S %Z')"
 
@@ -50,7 +49,6 @@ jobs:
         if: always()
         env:
           START_TS:  ${{ steps.started.outputs.ts }}
-          START_UTC: ${{ steps.started.outputs.utc }}
           START_KST: ${{ steps.started.outputs.kst }}
         run: |
           END_TS=$(date +%s)
@@ -63,9 +61,7 @@ jobs:
           {
             echo "## wevity-scraper run"
             echo ""
-            echo "- Start (UTC): ${START_UTC}"
             echo "- Start (KST): ${START_KST}"
-            echo "- End (UTC): $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             echo "- End (KST): $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S %Z')"
             echo "- Duration: ${MM}m ${SS}s"
           } >> "$GITHUB_STEP_SUMMARY"
