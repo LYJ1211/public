@@ -2,7 +2,7 @@ name: wevity-scraper
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # 10분마다 (UTC) — 필요시 5분으로
+    - cron: "*/5 * * * *"   # 5분마다 (UTC 기준)
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,15 @@ jobs:
         with:
           python-version: "3.11"
 
+      # ⏱ 시작 시각 기록 + 로그 출력
+      - name: Mark start time
+        id: started
+        run: |
+          echo "ts=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+          echo "kst=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_OUTPUT
+          echo "▶ Started at (KST): $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S %Z')"
+
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
@@ -35,3 +44,28 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_IDS:  ${{ secrets.TG_CHAT_IDS }}
         run: python main.py
+
+      # ⏹ 종료 시각/소요시간 출력 + Job Summary에 기록
+      - name: Show end-time & duration
+        if: always()
+        env:
+          START_TS:  ${{ steps.started.outputs.ts }}
+          START_UTC: ${{ steps.started.outputs.utc }}
+          START_KST: ${{ steps.started.outputs.kst }}
+        run: |
+          END_TS=$(date +%s)
+          D=$(( END_TS - START_TS ))
+          MM=$(( D / 60 ))
+          SS=$(( D % 60 ))
+          echo "⏹ Ended at (KST): $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S %Z')"
+          echo "⏱ Duration: ${MM}m ${SS}s"
+
+          {
+            echo "## wevity-scraper run"
+            echo ""
+            echo "- Start (UTC): ${START_UTC}"
+            echo "- Start (KST): ${START_KST}"
+            echo "- End (UTC): $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "- End (KST): $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "- Duration: ${MM}m ${SS}s"
+          } >> "$GITHUB_STEP_SUMMARY"
