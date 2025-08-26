@@ -1,0 +1,37 @@
+name: wevity-scraper
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # 10분마다 (UTC) — 필요시 5분으로
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    concurrency:
+      group: wevity-scraper
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 cloudscraper
+
+      - name: Run scraper
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT:       ${{ secrets.GH_PAT }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_IDS:  ${{ secrets.TG_CHAT_IDS }}
+        run: python main.py
