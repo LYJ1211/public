@@ -1,4 +1,4 @@
-# wevity_to_github.py -> main.py 로 사용
+# main.py
 # - 위비티(네이밍/슬로건) 크롤링 + GitHub JSON 업서트
 # - data/wevity_naming.json 가 '이미 존재'해야 동작
 # - 신규 항목에 added_at(KST, ISO) 기록(알림 메시지에는 표시 X)
@@ -22,7 +22,7 @@ from bs4 import BeautifulSoup
 # ─────────────────────────────────────────────────────────────────────
 CONFIG = {
     "OWNER":  "LYJ1211",              # ← 새 깃허브 계정/조직
-    "REPO":   "public",                # ← 레포 이름
+    "REPO":   "public",               # ← 레포 이름
     "PATH":   "data/wevity_naming.json",
     "BRANCH": "main",
     # 토큰: GH_PAT(있으면 우선) -> GITHUB_TOKEN(액션 기본) 순으로 사용
@@ -282,18 +282,29 @@ def notify_telegram(new_items: List[Dict]):
             time.sleep(1.05)
 
 def notify_print(new_items: List[Dict]):
+    # 오래된 것 → 최신 순으로 출력
     def ix_as_int(x):
         s = str(x.get("ix",""))
         return int(s) if s.isdigit() else 10**12
     ordered = sorted(new_items, key=ix_as_int)
+
     for it in ordered:
-        d = it.get("dday"); dtext = f"D-{d}" if isinstance(d, int) else "-"
+        title = it.get("title","")
+        organizer = it.get("organizer","") or "-"
+        status = it.get("status","") or "-"
+        url = it.get("url","")
+        d = it.get("dday")
+        dtext = f"D-{d}" if isinstance(d, int) else "-"
+        views_val = it.get("views")
+        views_txt = f"{views_val:,}" if isinstance(views_val, int) else "-"
+
         print("\n".join([
-            f"[신규] {it.get('title','')}",
-            f"  • 주최: {it.get('organizer','') or '-'}",
-            f"  • 상태: {dtext} • {it.get('status','') or '-'} • 조회 { (f'{it.get('views'):,}' if isinstance(it.get('views'),int) else '-') }",
-            f"  • 링크: {it.get('url','')}",
-        ])); print("-"*60)
+            f"[신규] {title}",
+            f"  • 주최: {organizer}",
+            f"  • 상태: {dtext} • {status} • 조회 {views_txt}",
+            f"  • 링크: {url}",
+        ]))
+        print("-" * 60)
 
 # ─────────────────────────────────────────────────────────────────────
 # MAIN
@@ -324,7 +335,7 @@ def main():
         notify_print(new_items)
         msg = f"chore: upsert {len(new_items)} new items, total {len(merged)} @ {datetime.now(timezone.utc).isoformat()}"
         try:
-            resp = _put_json(merged, _get_current_strict()[0] if False else sha, msg)  # sha 재활용
+            resp = _put_json(merged, sha, msg)  # sha 재사용
             print(f"GitHub 저장 완료: {resp.get('content',{}).get('path')} sha={resp.get('content',{}).get('sha')}")
             notify_telegram(new_items)
         except requests.HTTPError as e:
